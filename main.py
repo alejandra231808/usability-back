@@ -6,12 +6,32 @@ from flask_cors import CORS
 from routes.heuristicproblemsroutes import hproblems
 from models.heuristicowner import HeuristicOwner
 
+#####################################
+
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import request, jsonify
+from flask_login import login_user, logout_user, login_required, current_user
+
+
 app = Flask(__name__)
 app.register_blueprint(hproblems)
 CORS(app)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:12345678@localhost/usabilitydb'  # ajusta según tu configuración
 db = SQLAlchemy(app)
+#########################################################
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 
 class DesignOwner(db.Model):
@@ -663,6 +683,55 @@ def update_owner(id):
     db.session.commit()
     return jsonify({'message': 'HeuristicOwner actualizado correctamente'}), 200
 
+###########################################################################
+
+# Ruta para registrar un nuevo usuario
+@app.route('/register', methods=['POST'])
+def register_user():
+    data = request.get_json()
+
+    # Verificar si el usuario ya existe
+    existing_user = User.query.filter_by(username=data['username']).first()
+    if existing_user:
+        return jsonify({'message': 'El nombre de usuario ya está en uso'}), 400
+
+    new_user = User(username=data['username'], email=data['email'])
+    new_user.set_password(data['password'])
+
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({'message': 'Usuario registrado correctamente'}), 201
+
+# Ruta para iniciar sesión
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+
+    user = User.query.filter_by(username=data['username']).first()
+
+    if user and user.check_password(data['password']):
+        login_user(user)
+        return jsonify({'message': 'Inicio de sesión exitoso'}), 200
+    else:
+        return jsonify({'message': 'Credenciales incorrectas'}), 401
+
+# Ruta para cerrar sesión
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({'message': 'Sesión cerrada correctamente'}), 200
+
+# Ruta para obtener información del usuario actual
+@app.route('/user', methods=['GET'])
+@login_required
+def get_current_user():
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'email': current_user.email
+    }), 200
 
 if __name__ == '__main__':
     with app.app_context():
