@@ -11,8 +11,8 @@ from models.heuristicowner import HeuristicOwner
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import request, jsonify
-from flask_login import login_user, logout_user, login_required, current_user
-
+from flask_login import login_user, logout_user, login_required, current_user,login_manager
+from hashlib import sha256
 
 app = Flask(__name__)
 app.register_blueprint(hproblems)
@@ -25,13 +25,13 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(1024), nullable=False)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = sha256(password.encode('utf-8')).hexdigest()
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        return self.password_hash == sha256(password.encode('utf-8')).hexdigest()
 
 
 class DesignOwner(db.Model):
@@ -711,7 +711,7 @@ def login():
     user = User.query.filter_by(username=data['username']).first()
 
     if user and user.check_password(data['password']):
-        login_user(user)
+        #login_user(user)
         return jsonify({'message': 'Inicio de sesión exitoso'}), 200
     else:
         return jsonify({'message': 'Credenciales incorrectas'}), 401
