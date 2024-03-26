@@ -11,20 +11,24 @@ from models.heuristicowner import HeuristicOwner
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import request, jsonify
-from flask_login import login_user, logout_user, login_required, current_user,login_manager
+from flask_login import login_user, logout_user, login_required, current_user, login_manager
 from hashlib import sha256
+from flask import redirect, url_for, render_template
 
 app = Flask(__name__)
 app.register_blueprint(hproblems)
 CORS(app)
 api = Api(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:12345678@localhost/usabilitydb'  # ajusta según tu configuración
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:1234@localhost/usabilitydb'  # ajusta según tu configuración
 db = SQLAlchemy(app)
+
+
 #########################################################
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    rol = db.Column(db.String(20), nullable=False)
     password_hash = db.Column(db.String(1024), nullable=False)
 
     def set_password(self, password):
@@ -34,6 +38,8 @@ class User(db.Model, UserMixin):
         return self.password_hash == sha256(password.encode('utf-8')).hexdigest()
 
 
+###################################################################################################################################
+
 class DesignOwner(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -41,11 +47,13 @@ class DesignOwner(db.Model):
     description = db.Column(db.String(500), nullable=False)
     designtests = db.relationship('DesignQuestionnaires', backref='owner', lazy=True)
 
+
 class DesignQuestionnaires(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('design_owner.id'), nullable=False)
     question = db.Column(db.String(250), nullable=False)
     answers = db.Column(db.String(250), nullable=False)
+
 
 class HeuristicOwner(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -53,6 +61,7 @@ class HeuristicOwner(db.Model):
     url = db.Column(db.String(500), nullable=False)
     description = db.Column(db.String(500), nullable=False)
     checklists = db.relationship('HeuristicCheckList', backref='owner', lazy=True)
+
 
 class HeuristicEvaluations(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -164,7 +173,8 @@ class HeuristicCheckList(db.Model):
     OBSERVACIONH9 = db.Column(db.String(300), nullable=False)
     OBSERVACIONH10 = db.Column(db.String(300), nullable=False)
 
-#rutas para desing
+
+# rutas para desing
 @app.route('/desingtests', methods=['POST'])
 def create_desingtest():
     data = request.get_json()
@@ -173,6 +183,7 @@ def create_desingtest():
     db.session.add(new_owner)
     db.session.commit()
     return jsonify({'message': 'Diseño creado correctamente'}), 201
+
 
 @app.route('/desingtests', methods=['GET'])
 def get_desingtest():
@@ -187,7 +198,8 @@ def get_desingtest():
         })
     return jsonify({'owners': owners_list}), 200
 
-#ruta questionaries
+
+# ruta questionaries
 @app.route('/questionaries', methods=['POST'])
 def create_questionary():
     data = request.get_json()
@@ -196,6 +208,7 @@ def create_questionary():
     db.session.add(new_owner)
     db.session.commit()
     return jsonify({'message': 'Diseño creado correctamente'}), 201
+
 
 # Ruta para obtener todos los HeuristicOwners
 @app.route('/owners', methods=['GET'])
@@ -385,6 +398,7 @@ def identify_problems(owner_id):
     print(respuesta)
     return jsonify(respuesta)
 
+
 @app.route('/evaluations/<int:owner_id>', methods=['POST'])
 def saveEvaluations(owner_id):
     data = request.get_json()
@@ -396,14 +410,14 @@ def saveEvaluations(owner_id):
         db.session.add(ev)
         db.session.commit()
 
+    return jsonify({"message": "Guardado Correctamente"})
 
-    return jsonify({"message":"Guardado Correctamente"})
 
 @app.route('/evaluations/<int:owner_id>', methods=['GET'])
 def getEvaluations(owner_id):
     evaluations = HeuristicEvaluations.query.filter_by(owner_id=owner_id).all()
     print(evaluations)
-    response=[]
+    response = []
     for evaluation in evaluations:
         response.append({
             'name': evaluation.name,
@@ -416,6 +430,7 @@ def getEvaluations(owner_id):
         })
     print(response)
     return jsonify(response)
+
 
 @app.route('/getobservations/<int:owner_id>')
 def get_observations(owner_id):
@@ -528,7 +543,7 @@ def get_owner_heuristics(owner_id):
             'H10P08': heuristic.H10P08,
             'H10P09': heuristic.H10P09,
             'OBSERVACIONH1': heuristic.OBSERVACIONH1,
-            'OBSERVACIONH2': heuristic.OBSERVACIONH2,
+            'OBSERVACIONH2': heuristic.OBSERVACIONH3,
             'OBSERVACIONH3': heuristic.OBSERVACIONH3,
             'OBSERVACIONH4': heuristic.OBSERVACIONH4,
             'OBSERVACIONH5': heuristic.OBSERVACIONH5,
@@ -683,25 +698,38 @@ def update_owner(id):
     db.session.commit()
     return jsonify({'message': 'HeuristicOwner actualizado correctamente'}), 200
 
+
 ###########################################################################
 
 # Ruta para registrar un nuevo usuario
 @app.route('/register', methods=['POST'])
 def register_user():
     data = request.get_json()
+    print(data)
+    username = data['username']
+    email = data['email']
+    password = data['password']
+    selected_rol = data['rol']
+
+    # Verifica si el rol seleccionado es válido
+    if selected_rol not in ['administrator', 'owner', 'evaluator']:
+        return jsonify({'message': 'Invalid role selected'}), 400
 
     # Verificar si el usuario ya existe
-    existing_user = User.query.filter_by(username=data['username']).first()
+    existing_user = User.query.filter_by(username=username).first()  # Utiliza la variable 'username' directamente
     if existing_user:
         return jsonify({'message': 'El nombre de usuario ya está en uso'}), 400
 
-    new_user = User(username=data['username'], email=data['email'])
-    new_user.set_password(data['password'])
+    # Corrige la creación de la instancia new_user
+    new_user = User(username=username, email=email, rol=selected_rol)
+
+    new_user.set_password(password)
 
     db.session.add(new_user)
     db.session.commit()
 
     return jsonify({'message': 'Usuario registrado correctamente'}), 201
+
 
 # Ruta para iniciar sesión
 @app.route('/login', methods=['POST'])
@@ -711,10 +739,15 @@ def login():
     user = User.query.filter_by(username=data['username']).first()
 
     if user and user.check_password(data['password']):
-        #login_user(user)
-        return jsonify({'message': 'Inicio de sesión exitoso'}), 200
+        # login_user(user)
+        user_data={  'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'rol': user.rol,}
+        return jsonify({'message': 'Inicio de sesión exitoso','user':user_data}), 200
     else:
         return jsonify({'message': 'Credenciales incorrectas'}), 401
+
 
 # Ruta para cerrar sesión
 @app.route('/logout', methods=['POST'])
@@ -723,6 +756,7 @@ def logout():
     logout_user()
     return jsonify({'message': 'Sesión cerrada correctamente'}), 200
 
+
 # Ruta para obtener información del usuario actual
 @app.route('/user', methods=['GET'])
 @login_required
@@ -730,8 +764,15 @@ def get_current_user():
     return jsonify({
         'id': current_user.id,
         'username': current_user.username,
-        'email': current_user.email
+        'email': current_user.email,
+        'rol': current_user.rol,
     }), 200
+
+
+@app.route('/register', methods=['OPTIONS'])
+def handle_options():
+    return jsonify({'message': 'OK'}), 200
+
 
 if __name__ == '__main__':
     with app.app_context():
