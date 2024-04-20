@@ -24,11 +24,13 @@ db = SQLAlchemy(app)
 
 
 #########################################################
+# modelo para un usuario 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     rol = db.Column(db.String(20), nullable=False)
+    experience = db.Column(db.String(10), nullable=False, default='novato')  # Cambiado a String y valor por defecto 'novato'
     password_hash = db.Column(db.String(1024), nullable=False)
 
     def set_password(self, password):
@@ -38,8 +40,11 @@ class User(db.Model, UserMixin):
         return self.password_hash == sha256(password.encode('utf-8')).hexdigest()
 
 
+
+
 ###################################################################################################################################
 
+# clase de modelo nombrada DesignOwner
 class DesignOwner(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -47,14 +52,14 @@ class DesignOwner(db.Model):
     description = db.Column(db.String(500), nullable=False)
     designtests = db.relationship('DesignQuestionnaires', backref='owner', lazy=True)
 
-
+# clase de modelo nombrada DesignQuestionnaires
 class DesignQuestionnaires(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('design_owner.id'), nullable=False)
     question = db.Column(db.String(250), nullable=False)
     answers = db.Column(db.String(250), nullable=False)
 
-
+# clase de modelo nombrada HeuristicOwner
 class HeuristicOwner(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -62,7 +67,7 @@ class HeuristicOwner(db.Model):
     description = db.Column(db.String(500), nullable=False)
     checklists = db.relationship('HeuristicCheckList', backref='owner', lazy=True)
 
-
+# clase de modelo nombrada HeuristiEvaluations
 class HeuristicEvaluations(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('heuristic_owner.id'), nullable=False)
@@ -74,13 +79,13 @@ class HeuristicEvaluations(db.Model):
     frequency = db.Column(db.Integer, nullable=False)
     criticism = db.Column(db.Integer, nullable=False)
 
-
+# clase de modelo nombrada HeuristicDescription
 class HeuristicDescriptions(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(500), nullable=False)
 
-
+# clase de modelo nombrada HeuristcChecklist
 class HeuristicCheckList(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('heuristic_owner.id'), nullable=False)
@@ -174,7 +179,7 @@ class HeuristicCheckList(db.Model):
     OBSERVACIONH10 = db.Column(db.String(300), nullable=False)
 
 
-# rutas para desing
+# rutas para desing (crear prueba de diseño)
 @app.route('/desingtests', methods=['POST'])
 def create_desingtest():
     data = request.get_json()
@@ -184,7 +189,7 @@ def create_desingtest():
     db.session.commit()
     return jsonify({'message': 'Diseño creado correctamente'}), 201
 
-
+# ruta que recupera todas las pruebas de diseño de la base de datos y las devuelve como JSON
 @app.route('/desingtests', methods=['GET'])
 def get_desingtest():
     owners = DesignOwner.query.all()
@@ -199,7 +204,7 @@ def get_desingtest():
     return jsonify({'owners': owners_list}), 200
 
 
-# ruta questionaries
+# ruta questionaries ( ruta para crear un nuevo cuestionario)
 @app.route('/questionaries', methods=['POST'])
 def create_questionary():
     data = request.get_json()
@@ -264,7 +269,7 @@ def create_heuristic():
 
     return jsonify({"message": "Created successfully!", "id": heuristic.id}), 201
 
-
+# ruta para solicitud GET para identificar problemas relacionados con un propietario de diseño específico identificado por owner_id
 @app.route('/identifyproblems/<int:owner_id>', methods=['GET'])
 def identify_problems(owner_id):
     print(owner_id)
@@ -398,7 +403,7 @@ def identify_problems(owner_id):
     print(respuesta)
     return jsonify(respuesta)
 
-
+#ruta para solicitudes POST para guardar evaluaciones 
 @app.route('/evaluations/<int:owner_id>', methods=['POST'])
 def saveEvaluations(owner_id):
     data = request.get_json()
@@ -412,7 +417,7 @@ def saveEvaluations(owner_id):
 
     return jsonify({"message": "Guardado Correctamente"})
 
-
+# ruta para recupera evaluaciones de un propietario de diseño específico identificado mediante owner_iduna solicitud GET
 @app.route('/evaluations/<int:owner_id>', methods=['GET'])
 def getEvaluations(owner_id):
     evaluations = HeuristicEvaluations.query.filter_by(owner_id=owner_id).all()
@@ -431,7 +436,7 @@ def getEvaluations(owner_id):
     print(response)
     return jsonify(response)
 
-
+# ruta para  recuperar observaciones asociadas con un ID de propietario 
 @app.route('/getobservations/<int:owner_id>')
 def get_observations(owner_id):
     heuristics = HeuristicCheckList.query.filter_by(owner_id=owner_id).all()
@@ -556,7 +561,7 @@ def get_owner_heuristics(owner_id):
 
     return jsonify({'heuristics': heuristics_list}), 200
 
-
+# ruta para recuperar una heurística específica de la base de datos en función de su ID
 @app.route('/heuristic/<int:id>')
 def getheuristicbyid(id):
     heuristic = HeuristicCheckList.query.get(id)
@@ -702,33 +707,35 @@ def update_owner(id):
 ###########################################################################
 
 # Ruta para registrar un nuevo usuario
+
 @app.route('/register', methods=['POST'])
 def register_user():
-    data = request.get_json()
-    print(data)
+    data = request.json
     username = data['username']
     email = data['email']
     password = data['password']
-    selected_rol = data['rol']
+    rol = data['rol']
+    experience = data['experience']  # Asegúrate de enviar este campo desde el frontend
 
     # Verifica si el rol seleccionado es válido
-    if selected_rol not in ['administrator', 'owner', 'evaluator']:
+    if rol not in ['administrator', 'owner', 'evaluator']:
         return jsonify({'message': 'Invalid role selected'}), 400
 
     # Verificar si el usuario ya existe
-    existing_user = User.query.filter_by(username=username).first()  # Utiliza la variable 'username' directamente
+    existing_user = User.query.filter_by(username=username).first()
     if existing_user:
         return jsonify({'message': 'El nombre de usuario ya está en uso'}), 400
 
-    # Corrige la creación de la instancia new_user
-    new_user = User(username=username, email=email, rol=selected_rol)
-
+    # Crea un nuevo usuario con los datos proporcionados
+    new_user = User(username=username, email=email, rol=rol, experience=experience)
     new_user.set_password(password)
 
+    # Agrega el nuevo usuario a la base de datos y guarda los cambios
     db.session.add(new_user)
     db.session.commit()
 
     return jsonify({'message': 'Usuario registrado correctamente'}), 201
+
 
 
 # Ruta para iniciar sesión
@@ -761,11 +768,17 @@ def logout():
 @app.route('/user', methods=['GET'])
 @login_required
 def get_current_user():
+    if current_user.rol == 'evaluator':
+        experience = current_user.experience
+    else:
+        experience = None
+    
     return jsonify({
         'id': current_user.id,
         'username': current_user.username,
         'email': current_user.email,
         'rol': current_user.rol,
+        'experience': experience
     }), 200
 
 
