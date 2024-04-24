@@ -39,8 +39,21 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return self.password_hash == sha256(password.encode('utf-8')).hexdigest()
 
+########################################################################################
+class EvaluatorInfo(db.Model):
+    evaluator_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    age = db.Column(db.Integer)
+    profession = db.Column(db.String(255))
+    status = db.Column(db.String(50))
+    socioeconomic_level = db.Column(db.String(50))
+    technological_experience = db.Column(db.String(255))
+    personality_description = db.Column(db.Text)
+    goals = db.Column(db.Text)
+    habits = db.Column(db.Text)
 
-
+    # Relación con la tabla User
+    user = db.relationship('User', backref=db.backref('evaluator_info', uselist=False))
 
 ###################################################################################################################################
 
@@ -735,6 +748,28 @@ def register_user():
     db.session.commit()
 
     return jsonify({'message': 'Usuario registrado correctamente'}), 201
+
+#posibble configuracion pendiente
+#guardar informacion de los evaluadores
+@app.route('/', methods=['POST'])
+def guardar_info_evaluador():
+    data = request.json
+    nuevo_evaluador_info = EvaluatorInfo(
+        user_id=data['user_id'],
+        age=data['age'],
+        profession=data['profession'],
+        status=data['status'],
+        socioeconomic_level=data['socioeconomic_level'],
+        technological_experience=data['technological_experience'],
+        personality_description=data['personality_description'],
+        goals=data['goals'],
+        habits=data['habits']
+    )
+
+    db.session.add(nuevo_evaluador_info)
+    db.session.commit()
+
+    return jsonify({'message': 'Información del evaluador guardada correctamente'})
 
 
 
