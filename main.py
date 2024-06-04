@@ -42,20 +42,33 @@ class User(db.Model, UserMixin):
 ########################################################################################
 class EvaluatorInfo(db.Model):
     evaluator_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    username = db.Column(db.String(50), nullable=False)  
     age = db.Column(db.Integer)
     profession = db.Column(db.String(255))
     status = db.Column(db.String(50))
-    socioeconomic_level = db.Column(db.String(50))
     technological_experience = db.Column(db.String(255))
-    personality_description = db.Column(db.Text)
-    goals = db.Column(db.Text)
-    habits = db.Column(db.Text)
+    personality_description = db.Column(db.String(255))
+    goals = db.Column(db.String(255))
+    habits = db.Column(db.String(255))
 
     # Relación con la tabla User
-    user = db.relationship('User', backref=db.backref('evaluator_info', uselist=False))
+    # user = db.relationship('User', backref=db.backref('evaluator_info', uselist=False))
 
 ###################################################################################################################################
+
+#clase de modelo nombrada PorcentajeCheckList para calculos de la lista de chequeo
+class PorcentajeCheckList(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_username= db.Column(db.String(50), db.ForeignKey('user.username'), nullable=False)
+    rol = db.Column(db.String(50), nullable=False)  
+    suma_si = db.Column(db.Integer)
+    suma_no = db.Column(db.Integer)
+    porcentaje_si = db.Column(db.Numeric(precision=10, scale=2))
+    porcentaje_no= db.Column(db.Numeric(precision=10, scale=2))
+   
+    #user = db.relationship('User', backref='porcentaje_checklists', lazy=True)
+
+
 
 # clase de modelo nombrada DesignOwner
 class DesignOwner(db.Model):
@@ -191,7 +204,74 @@ class HeuristicCheckList(db.Model):
     OBSERVACIONH9 = db.Column(db.String(300), nullable=False)
     OBSERVACIONH10 = db.Column(db.String(300), nullable=False)
 
+############################################################################
+#revisar fragmento de código
+@app.route('/porcentajechecklists', methods=['POST'])
+def create_porcentajechecklist():
+    data = request.get_json()
+    new_porcentaje = PorcentajeCheckList(
+        suma_si=data['suma_si'],
+        suma_no=data['suma_no'],
+        porcentaje_si=data['porcentaje_si'],
+        porcentaje_no=data['porcentaje_no'],
+        user_username=data['user_username'],
+        rol=data['rol']  
+    )
+    db.session.add(new_porcentaje)
+    db.session.commit()
+    return jsonify({'message': 'Porcentaje creado correctamente'}), 201
 
+@app.route('/porcentajechecklists', methods=['GET'])
+def get_porcentajechecklists():
+    porcentajes = PorcentajeCheckList.query.all()
+    porcentajes_list = []
+    for porcentaje in porcentajes:
+        porcentajes_list.append({
+            'id': porcentaje.id,
+            'suma_si': porcentaje.suma_si,
+            'suma_no': porcentaje.suma_no,
+            'porcentaje_si': porcentaje.porcentaje_si,
+            'porcentaje_no': porcentaje.porcentaje_no,
+            'user_username': porcentaje.user_username,
+            'rol': porcentaje.rol
+        })
+    return jsonify({'porcentajes': porcentajes_list}), 200
+
+#####################################################################################################
+
+#ruta para enviar datso extras del evaluador
+@app.route('/evaluator_info', methods=['POST'])
+def create_evaluator_info():
+    data = request.json
+    new_evaluator_info = EvaluatorInfo(
+        username=data['username'],
+        age=data['age'],
+        profession=data['profession'],
+        status=data['status'],
+        technological_experience =data['technological_experience'],
+        personality_description=data['personality_description'],
+        goals =data['goals'],
+        habits=data['habits']
+    )
+    db.session.add(new_evaluator_info)
+    db.session.commit()
+    return jsonify({'message': 'Evaluator info created successfully'}), 201
+
+@app.route('/evaluator_info/<int:evaluator_id>', methods=['GET'])
+def get_evaluator_info(evaluator_id):
+    evaluator_info = EvaluatorInfo.query.get_or_404(evaluator_id)
+    return jsonify({
+        'evaluator_id': evaluator_info.evaluator_id,
+        'username': evaluator_info.username,
+        'age': evaluator_info.age,
+        'profession': evaluator_info.profession,
+        'status': evaluator_info.status,
+        'technological_experience': evaluator_info.technological_experience,
+        'personality_description': evaluator_info.personality_description,
+        'goals': evaluator_info.goals,
+        'habits': evaluator_info.habits
+    })
+#############################################################################################################
 # rutas para desing (crear prueba de diseño)
 @app.route('/desingtests', methods=['POST'])
 def create_desingtest():
@@ -749,27 +829,7 @@ def register_user():
 
     return jsonify({'message': 'Usuario registrado correctamente'}), 201
 
-#posibble configuracion pendiente
-#guardar informacion de los evaluadores
-@app.route('/', methods=['POST'])
-def guardar_info_evaluador():
-    data = request.json
-    nuevo_evaluador_info = EvaluatorInfo(
-        user_id=data['user_id'],
-        age=data['age'],
-        profession=data['profession'],
-        status=data['status'],
-        socioeconomic_level=data['socioeconomic_level'],
-        technological_experience=data['technological_experience'],
-        personality_description=data['personality_description'],
-        goals=data['goals'],
-        habits=data['habits']
-    )
 
-    db.session.add(nuevo_evaluador_info)
-    db.session.commit()
-
-    return jsonify({'message': 'Información del evaluador guardada correctamente'})
 
 
 
